@@ -37,7 +37,7 @@ _start:
         MSR     CPSR_c, R1                  // change to IRQ mode
         LDR     SP, =0xFFFFFFFF - 3      // set IRQ stack to top of A9 onchip
         MOV R12,#4 // LED LIGHT COUNTER
-		
+		MOV R6,#0
 		LDR R0,=LED_POINTER_ADDRESS
 		LDR R2,=LED_SAVE_BASE_ADDRESS
 		STR R2,[R0]
@@ -64,9 +64,16 @@ _start:
     	
 LOOP:   
 		CMP R12,#0
-		SUB R12,R12,#1
-		BLGE KEY_ISR
-		BLLT TurnOffLastLed
+		SUBPLS R12,R12,#1
+		BLPL KEY_ISR
+		//BPL InitTimer
+		BLPL InitTimer
+		BL TurnOffLastLed
+		//BLLT TurnOffLastLed
+		BLPL InitTimer
+		BLLT CheckUserSwitchButtonAction
+		CMP R6,#4
+		BEQ ResetGame
         B LOOP                        
                       
 /* Configure the Altera interval timer to create interrupts at 50-msec intervals */
@@ -264,11 +271,13 @@ TurnOffLastLed:
 	LDR R1, =LED_BASE
 	MOV R9,#0
 	STR R9,[R1]
+	//MOV R12,#0
   	BX  LR 
 	
 	
 ResetSavedLedsSTART:
 	LDR R0,=LED_SAVE_BASE_ADDRESS
+	//MOV R12,#0
 	B ResetSavedLedsLOOP
 ResetSavedLedsLOOP:
 	LDR R3,=RESET_ADDRESS
@@ -284,7 +293,42 @@ ResetSavedLedsFINISH:
 	LDR R1,=LED_POINTER_ADDRESS
 	LDR R0,[R1]
 	BX LR
+
+CheckUserSwitchButtonAction:
+	LDR R0,=SW_BASE
+	LDR R0,[R0]
+	CMP R0,#0
+	BXEQ LR
+	LDR R0,=LED_SAVE_BASE_ADDRESS
+	MOV R3,#0
+	B GetCurrentLedAddress
+GetCurrentLedAddress:
+	CMP R6,R3
+	BEQ CheckIFSwitchAnswerCorrect
+	ADD R3,R3,#1
+	ADD R0,R0,#4
+	B GetCurrentLedAddress
+	//BEQ CheckIFSwitchAnswerCorrect
+CheckIFSwitchAnswerCorrect:
+	ADD R6,R6,#1
+	LDR R0,[R0]
+	LDR R1,=SW_BASE
+	LDR R1,[R1]
+	CMP R0,R1
+	BEQ CorrectContinueGame
+	B END
 	
+CorrectContinueGame:
+	LDR R0,=SW_BASE
+	LDR R0,[R0]
+	CMP R0,#0
+	BXEQ LR
+	B CorrectContinueGame
+
+ResetGame:
+	MOV R6,#0
+	MOV R12,#4
+	BX LR
 	
 END_KEY_ISR:
 		STR R9,[R1]//PUT LED ADDRESES
@@ -293,6 +337,9 @@ END_KEY_ISR:
 		LDR R1, =LED_BASE
 		STR R9,[R1]
         BX  LR  
+
+END:
+	B END
 
 .global     PATTERN                     
 PATTERN:                                    
