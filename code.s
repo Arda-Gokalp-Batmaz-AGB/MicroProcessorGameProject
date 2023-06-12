@@ -224,7 +224,7 @@ END_TIMER_ISR:
 InitTimer:
 	//Init Timer
 	LDR R7, =0xFFFEC600 // PRIVATE TIMER
-	LDR R8,=1200000000
+	LDR R8,=120000000
 	STR R8,[R7]
 	MOV R8, #0b011 
 	STR R8, [R7, #0x8] 	
@@ -233,13 +233,15 @@ WAIT:
 	LDR R8, [R7, #0xC] // read timer status
 	CMP R8, #0
 	BEQ WAIT
-	STR R8, [R7, #0xC] 
+	STR R8, [R7, #0xC]
+	B SaveLeds
+SaveLeds:
 	B END_KEY_ISR
 END_KEY_ISR:
 		LDR R1, =LED_BASE
 		STR R9,[R1]
         BX      LR  
-		
+
 .global     PATTERN                     
 PATTERN:                                    
 .word       0x0F0F0F0F                  // pattern to show on the LED lights
