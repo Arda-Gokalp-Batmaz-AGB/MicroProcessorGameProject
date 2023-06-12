@@ -14,9 +14,11 @@
 
 
 .equ LED_BASE, 0xFF200000 
+.equ LED_POINTER_ADDRESS, 0xFFFFea00
+.equ ANSWER_POINTER_ADDRESS, 0xFFFFea04 
 .equ LED_SAVE_BASE_ADDRESS, 0xFFFFea10 
 .equ LED_MAX_SAVE_BASE_ADDRESS, 0xFFFFea60 
-
+.equ RESET_ADDRESS, 0xaaaaaaaa
 .equ SW_BASE, 0xFF200040
 .equ LED_MASK, 0x3FF
 .org    0x1000    // Start at memory location 1000
@@ -36,7 +38,10 @@ _start:
         LDR     SP, =0xFFFFFFFF - 3      // set IRQ stack to top of A9 onchip
         MOV R12,#4 // LED LIGHT COUNTER
 		
-		
+		LDR R0,=LED_POINTER_ADDRESS
+		LDR R2,=LED_SAVE_BASE_ADDRESS
+		STR R2,[R0]
+		BL ResetSavedLedsSTART
 		
 		
 
@@ -58,8 +63,11 @@ _start:
         MSR     CPSR_c, R1                  
     	
 LOOP:   
-		B KEY_ISR
-        B       LOOP                        
+		CMP R12,#0
+		SUB R12,R12,#1
+		BLGE KEY_ISR
+		BLLT TurnOffLastLed
+        B LOOP                        
                       
 /* Configure the Altera interval timer to create interrupts at 50-msec intervals */
 CONFIG_INTERVAL_TIMER:   
@@ -227,7 +235,7 @@ END_TIMER_ISR:
 InitTimer:
 	//Init Timer
 	LDR R7, =0xFFFEC600 // PRIVATE TIMER
-	LDR R8,=120000000
+	LDR R8,=240000000
 	STR R8,[R7]
 	MOV R8, #0b011 
 	STR R8, [R7, #0x8] 	
@@ -237,13 +245,54 @@ WAIT:
 	CMP R8, #0
 	BEQ WAIT
 	STR R8, [R7, #0xC]
+	
+	LDR R0,=LED_SAVE_BASE_ADDRESS
+	LDR R1,=LED_POINTER_ADDRESS
+	LDR R1,[R1]
 	B SaveLeds
 SaveLeds:
-	B END_KEY_ISR
+	LDR R2,[R1]
+	//LDR R2,[R2]
+	CMP R2,#0
+	BEQ END_KEY_ISR
+	LDR R3,=RESET_ADDRESS
+	CMP R2,R3
+	BEQ END_KEY_ISR
+	ADD R1,R1,#4
+	B SaveLeds
+TurnOffLastLed:
+	LDR R1, =LED_BASE
+	MOV R9,#0
+	STR R9,[R1]
+  	BX  LR 
+	
+	
+ResetSavedLedsSTART:
+	LDR R0,=LED_SAVE_BASE_ADDRESS
+	B ResetSavedLedsLOOP
+ResetSavedLedsLOOP:
+	LDR R3,=RESET_ADDRESS
+	LDR R2,[R0]
+	LDR R4,=RESET_ADDRESS
+	CMP R2,R4
+	BEQ ResetSavedLedsFINISH
+	STR R3,[R0]
+	ADD R0,R0,#4
+	B ResetSavedLedsLOOP
+ResetSavedLedsFINISH:
+	LDR R0,=LED_SAVE_BASE_ADDRESS
+	LDR R1,=LED_POINTER_ADDRESS
+	LDR R0,[R1]
+	BX LR
+	
+	
 END_KEY_ISR:
+		STR R9,[R1]//PUT LED ADDRESES
+		LDR R2,=LED_POINTER_ADDRESS
+		STR R1,[R2]
 		LDR R1, =LED_BASE
 		STR R9,[R1]
-        BX      LR  
+        BX  LR  
 
 .global     PATTERN                     
 PATTERN:                                    
