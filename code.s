@@ -14,6 +14,9 @@
 
 
 .equ LED_BASE, 0xFF200000 
+.equ LED_SAVE_BASE_ADDRESS, 0xFFFFea10 
+.equ LED_MAX_SAVE_BASE_ADDRESS, 0xFFFFea60 
+
 .equ SW_BASE, 0xFF200040
 .equ LED_MASK, 0x3FF
 .org    0x1000    // Start at memory location 1000
