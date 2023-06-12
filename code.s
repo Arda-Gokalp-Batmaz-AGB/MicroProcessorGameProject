@@ -31,7 +31,14 @@ _start:
         MOV     R1, #0b11010010  //| IRQ_MODE 
         MSR     CPSR_c, R1                  // change to IRQ mode
         LDR     SP, =0xFFFFFFFF - 3      // set IRQ stack to top of A9 onchip
-                                            // memory
+        MOV R12,#4 // LED LIGHT COUNTER
+		
+		
+		
+		
+
+			//BL InitTimer
+
 
 /* Change to SVC (supervisor) mode with interrupts disabled */
         MOV     R1, #0b11010011  //| SVC_MODE 
@@ -47,7 +54,8 @@ _start:
         MOV     R1, #0b01010011   //| SVC_MODE  // IRQ unmasked, MODE = SVC
         MSR     CPSR_c, R1                  
     	
-LOOP:                                       
+LOOP:   
+		B KEY_ISR
         B       LOOP                        
                       
 /* Configure the Altera interval timer to create interrupts at 50-msec intervals */
@@ -176,24 +184,22 @@ KEY_ISR:
 		LDR R3,=BIT_SELECT_MASK
 		//AND R2,R2,R3
 		AND R2,R2,R3
-		LSR R2,R2,#10
+		LSR R2,R2,#9
 		//LSR R2,R2,#10
 
 		MOV R10,R2
 		MOV R9,#1
 		B CalculateLedPlace
-		B END_KEY_ISR
+		//B InitTimer
+		//B END_KEY_ISR
 
 CalculateLedPlace:
 	CMP R10,#0
-	BEQ END_KEY_ISR
+	BEQ InitTimer
 	SUB R10,R10,#1
 	LSL R9,R9,#1
 	B CalculateLedPlace
-END_KEY_ISR:
-		LDR R1, =LED_BASE
-		STR R9,[R1]
-        BX      LR  
+
 
 TIMER_ISR:                      
         PUSH    {R0-R11}         
@@ -214,6 +220,26 @@ END_TIMER_ISR:
 	
 	
 	
+	
+InitTimer:
+	//Init Timer
+	LDR R7, =0xFFFEC600 // PRIVATE TIMER
+	LDR R8,=1200000000
+	STR R8,[R7]
+	MOV R8, #0b011 
+	STR R8, [R7, #0x8] 	
+	B WAIT
+WAIT: 
+	LDR R8, [R7, #0xC] // read timer status
+	CMP R8, #0
+	BEQ WAIT
+	STR R8, [R7, #0xC] 
+	B END_KEY_ISR
+END_KEY_ISR:
+		LDR R1, =LED_BASE
+		STR R9,[R1]
+        BX      LR  
+		
 .global     PATTERN                     
 PATTERN:                                    
 .word       0x0F0F0F0F                  // pattern to show on the LED lights
