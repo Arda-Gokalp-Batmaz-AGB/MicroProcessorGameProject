@@ -67,13 +67,15 @@ LOOP:
 		SUBPLS R12,R12,#1
 		BLPL KEY_ISR
 		//BPL InitTimer
+		Blpl SaveLeds
 		BLPL InitTimer
+		
 		BL TurnOffLastLed
 		//BLLT TurnOffLastLed
 		BLPL InitTimer
 		BLLT CheckUserSwitchButtonAction
 		CMP R6,#4
-		BEQ ResetGame
+		BLEQ ResetGame
         B LOOP                        
                       
 /* Configure the Altera interval timer to create interrupts at 50-msec intervals */
@@ -256,15 +258,16 @@ WAIT:
 	LDR R0,=LED_SAVE_BASE_ADDRESS
 	LDR R1,=LED_POINTER_ADDRESS
 	LDR R1,[R1]
-	B SaveLeds
+	B END_KEY_ISR
+	//B SaveLeds
 SaveLeds:
 	LDR R2,[R1]
 	//LDR R2,[R2]
 	CMP R2,#0
-	BEQ END_KEY_ISR
+	BEQ END_SAVE
 	LDR R3,=RESET_ADDRESS
 	CMP R2,R3
-	BEQ END_KEY_ISR
+	BEQ END_SAVE
 	ADD R1,R1,#4
 	B SaveLeds
 TurnOffLastLed:
@@ -330,12 +333,15 @@ ResetGame:
 	MOV R12,#4
 	BX LR
 	
+END_SAVE:
+	STR R9,[R1]//PUT LED ADDRESES
+	LDR R2,=LED_POINTER_ADDRESS
+	STR R1,[R2]
+	LDR R1, =LED_BASE
+	STR R9,[R1]
+	B END_KEY_ISR
+	
 END_KEY_ISR:
-		STR R9,[R1]//PUT LED ADDRESES
-		LDR R2,=LED_POINTER_ADDRESS
-		STR R1,[R2]
-		LDR R1, =LED_BASE
-		STR R9,[R1]
         BX  LR  
 
 END:
