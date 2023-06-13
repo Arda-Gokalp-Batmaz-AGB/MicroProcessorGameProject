@@ -41,6 +41,7 @@ _start:
 		LDR R0,=LED_POINTER_ADDRESS
 		LDR R2,=LED_SAVE_BASE_ADDRESS
 		STR R2,[R0]
+		
 		BL ResetSavedLedsSTART
 		
 		
@@ -294,7 +295,8 @@ ResetSavedLedsLOOP:
 ResetSavedLedsFINISH:
 	LDR R0,=LED_SAVE_BASE_ADDRESS
 	LDR R1,=LED_POINTER_ADDRESS
-	LDR R0,[R1]
+	//LDR R0,[R1]
+	STR R0,[R1]
 	BX LR
 
 CheckUserSwitchButtonAction:
@@ -331,7 +333,8 @@ CorrectContinueGame:
 ResetGame:
 	MOV R6,#0
 	MOV R12,#4
-	BX LR
+	B ResetSavedLedsSTART
+	//BX LR
 	
 END_SAVE:
 	STR R9,[R1]//PUT LED ADDRESES
