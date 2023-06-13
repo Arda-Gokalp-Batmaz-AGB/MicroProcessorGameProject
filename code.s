@@ -18,6 +18,7 @@
 .equ ANSWER_POINTER_ADDRESS, 0xFFFFea04 
 .equ LED_SAVE_BASE_ADDRESS, 0xFFFFea10 
 .equ LED_MAX_SAVE_BASE_ADDRESS, 0xFFFFea60 
+.equ TOTAL_SCORE_SAVE_ADDRESS, 0xFFFFea04 
 .equ RESET_ADDRESS, 0xaaaaaaaa
 .equ SW_BASE, 0xFF200040
 .equ LED_MASK, 0x3FF
@@ -28,7 +29,7 @@
 .equ CHAR_MASK, 0b1001111
 
 .text  
-
+HEXTABLE: .word 0b00111111,0b00000110,0b01011011,0b01001111,0b01100110,0b01101101,0b01111101,0b00000111,0b01111111,0b01101111
 Seven_Segment_Base_Addres: .word 0xFF200020
 .global     _start                      
 _start:                                     
@@ -38,13 +39,23 @@ _start:
         LDR     SP, =0xFFFFFFFF - 3      // set IRQ stack to top of A9 onchip
         MOV R12,#4 // LED LIGHT COUNTER
 		MOV R6,#0
+		
+		//PUSH {R0-R10,LR}
+		//MOV R9,R6
+		BL Reset_Seven_Segment_Display
+		
+		LDR R0,=LED_BASE
+		STR R6,[R0]
+		
 		LDR R0,=LED_POINTER_ADDRESS
 		LDR R2,=LED_SAVE_BASE_ADDRESS
 		STR R2,[R0]
-		
+		LDR R0,=TOTAL_SCORE_SAVE_ADDRESS
+		STR R6,[R0]
 		BL ResetSavedLedsSTART
 		
-		
+
+		//POP {R0-R10,LR}
 
 			//BL InitTimer
 
@@ -321,15 +332,26 @@ CheckIFSwitchAnswerCorrect:
 	LDR R1,[R1]
 	CMP R0,R1
 	BEQ CorrectContinueGame
-	B END
+	B LOSE
 	
 CorrectContinueGame:
 	LDR R0,=SW_BASE
 	LDR R0,[R0]
 	CMP R0,#0
-	BXEQ LR
+	BEQ UpdateScoreAndReturn
 	B CorrectContinueGame
 
+UpdateScoreAndReturn:
+	LDR R1,=TOTAL_SCORE_SAVE_ADDRESS
+	LDR R0,[R1]
+	ADD R0,R0,#10
+	STR R0,[R1]
+	
+	
+	PUSH {R0-R10,LR}
+	MOV R9,R0
+	B DisplayScore
+	//BX LR
 ResetGame:
 	MOV R6,#0
 	MOV R12,#4
@@ -347,8 +369,140 @@ END_SAVE:
 END_KEY_ISR:
         BX  LR  
 
+LOSE:
+	LDR R0,=LED_BASE
+	LDR R1,=0b1111111111
+	STR R1,[R0]
+	B END
 END:
 	B END
+
+
+DisplayScore:
+	MOV R0, R9
+	LDR R2, Seven_Segment_Base_Addres
+	MOV R3, #0 // COUNTER_THOUSAND (Holds 1000's digit)
+	MOV R4, #0 // COUNTER_HUNDRED (Holds 100's digit)
+	MOV R5, #0 // COUNTER_TEN (Holds 10's digit)
+	MOV R6, #0 // COUNTER_ONE (Holds 1's digit)
+	MOV R7, #0 // 
+	MOV R8, #0 // 
+	MOV R9, #0 // 
+	B IS_THERE_THOUSAND
+
+Get_Zero_Hexa:
+	LDR R8, [R7]
+	BX LR
+// Finds Hexa number for relevant value
+FIND_HEXA_NUMBER:
+	CMP R9,#0
+	BEQ Get_Zero_Hexa
+	
+	LDR R8, [R7] , #4
+	SUB R9,R9,#1
+	CMP R9,#0
+	BNE FIND_HEXA_NUMBER
+	LDR R8, [R7]
+	BX LR
+
+// Checks if the current number has 1000's digit
+IS_THERE_THOUSAND:
+	CMP R0,#1000
+	BGE LOOP_THOUSAND
+	LDR R3 ,HEXTABLE
+	B IS_THERE_HUNDRED
+// Checks if the current number has 100's digit
+IS_THERE_HUNDRED:
+	CMP R0,#100
+	BGE LOOP_HUNDRED
+	LDR R4 ,HEXTABLE
+	B IS_THERE_TEN
+// Checks if the current number has 10's digit
+IS_THERE_TEN:
+	CMP R0,#10
+	BGE LOOP_TEN
+	LDR R5 ,HEXTABLE
+	B LOOP_ONE
+// Loops in 1000's until find the value of 1000's digit
+LOOP_THOUSAND://R3
+	SUB R0,R0,#1000
+	CMP R0,#1000
+	ADD R3,R3,#1
+	BGE LOOP_THOUSAND
+	
+	LDR R7,=HEXTABLE
+	MOV R9,R3
+	BL FIND_HEXA_NUMBER
+	MOV R3,R8
+	MOV R8,#0
+	B IS_THERE_HUNDRED
+// Loops in 100's until find the value of 100's digit
+LOOP_HUNDRED://R4
+	SUB R0,R0,#100
+	CMP R0,#100
+	ADD R4,R4,#1
+	BGE LOOP_HUNDRED
+	
+	LDR R7,=HEXTABLE	
+	MOV R9,R4
+	BL FIND_HEXA_NUMBER
+	MOV R4,R8
+	MOV R8,#0
+	
+	B IS_THERE_TEN
+// Loops in 10's until find the value of 10's digit
+LOOP_TEN://R5
+	SUB R0,R0,#10
+	CMP R0,#10
+	ADD R5,R5,#1
+	BGE LOOP_TEN
+	
+	LDR R7,=HEXTABLE	
+	MOV R9,R5
+	BL FIND_HEXA_NUMBER
+	MOV R5,R8
+	MOV R8,#0
+	
+	B LOOP_ONE
+// Not run looping in the 1's, directly gets the remainder value
+LOOP_ONE://R6
+	MOV R6,R0
+	LDR R7,=HEXTABLE	
+	MOV R9,R6
+	BL FIND_HEXA_NUMBER
+	MOV R6,R8
+	MOV R8,#0
+	B Write_All_Digits
+// Writes all found digits to the seven-segment display
+Write_All_Digits:
+	MOV R0,#0
+	ADD R0,R0,R6
+	LSL R5, #8
+	ADD R0,R0,R5
+	LSL R4, #16
+	ADD R0,R0,R4
+	LSL R3, #24
+	ADD R0,R0,R3
+	STR R0,[R2]
+	CMP R10,#1
+	POP {R0-R10,LR}
+	BX LR
+	
+
+Reset_Seven_Segment_Display:
+	LDR R2, Seven_Segment_Base_Addres
+	MOV R1,#0b00111111
+	MOV R0,#0b00111111
+	//ADD R0,R0,R1
+	LSL R1, #8
+	ADD R0,R0,R1
+	//LSL R1, #16
+	//ADD R0,R0,R1
+	///LSL R1, #31
+	//ADD R0,R0,R1
+	STR R0,[R2]
+
+	BX LR
 
 .global     PATTERN                     
 PATTERN:                                    
