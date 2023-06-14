@@ -25,9 +25,8 @@
 .equ SW_BASE, 0xFF200040 // Base addresses of the switches
 .org    0x1000    // Start at memory location 1000
 
-.equ BIT_SELECT_MASK, 0xE00
+.equ BIT_SELECT_MASK, 0xE00 // Allows masking the random time interval value by taking its last three bits
 .equ TIMER_ADDRESS, 0xff202000
-.equ CHAR_MASK, 0b1001111
 
 .text  
 HEXTABLE: .word 0b00111111,0b00000110,0b01011011,0b01001111,0b01100110,0b01101101,0b01111101,0b00000111,0b01111111,0b01101111
@@ -40,32 +39,38 @@ _start:
         LDR     SP, =0xFFFFFFFF - 3      // set IRQ stack to top of A9 onchip
 		
 
-        MOV R12,#3 // LED LIGHT COUNTER
+        MOV R12,#3 // glow led count at start it decreases after every sucessfull attemp to 
+		// Loads glow led count to relevant address
 		LDR R6,=LED_COUNT_ADDRESS
 		STR R12,[R6]
 		
+		// Holds the current correctly matched led switch pair count; 
+		// It is used in order to check if the user matched all leds in a game iteration. 
+		// It resets after every iteration.
 		MOV R6,#0
 		
+		// Sets win count value to the zero
 		LDR R11,=WIN_COUNT_ADDRESS
-		STR R6,[R11]// WIN COUNT
-		//PUSH {R0-R10,LR}
-		//MOV R9,R6
-		BL Reset_Seven_Segment_Display
+		STR R6,[R11]
+
+		BL Reset_Seven_Segment_Display // Resets the values in the display
 		
+		// Closes all of the leds
 		LDR R0,=LED_BASE
 		STR R6,[R0]
 		
+		// Initializes the led pointer address value to the base address 
+		// value to start pointing and putting values from the base address.
 		LDR R0,=LED_POINTER_ADDRESS
 		LDR R2,=LED_SAVE_BASE_ADDRESS
 		STR R2,[R0]
 		LDR R0,=TOTAL_SCORE_SAVE_ADDRESS
 		STR R6,[R0]
-		BL ResetSavedLedsSTART
-		BLPL InitTimer
+		
+		
+		BL ResetSavedLedsSTART // Resets pre-stored led values in the addresses
+		BLPL InitTimer // Delay for 2.4 seconds
 
-		//POP {R0-R10,LR}
-
-			//BL InitTimer
 
 
 /* Change to SVC (supervisor) mode with interrupts disabled */
@@ -82,22 +87,31 @@ _start:
         MOV     R1, #0b01010011   //| SVC_MODE  // IRQ unmasked, MODE = SVC
         MSR     CPSR_c, R1                  
     	
-LOOP:   
+LOOP:   // If R12 is positive, the system checks if, 
+		// in the current game iteration, 
+		// more leads need to be glowed before allowing the user to push switches.
 		CMP R12,#0
 		SUBPLS R12,R12,#1
-		BLPL KEY_ISR
-		Blpl SaveLeds
+		BLPL GlowLed
+		BlPl SaveLeds
 		BLPL InitTimer
 		
+		//Extinguishes the last glowed led, and 
+		// before glowing another waits for 2.4 seconds.
 		BL TurnOffLastLed
 		BLPL InitTimer
+		
+		// Checks user's interactions with the switch buttons
 		BLLT CheckUserSwitchButtonAction
 		
+		// Checks if the user found all the led-switch pairs correctly in a game iteration; 
+		// if so, start a new game iteration.
 		LDR R0,=LED_COUNT_ADDRESS
 		LDR R0,[R0]
-		
 		CMP R6,R0
 		BLEQ ResetGame
+		
+		
         B LOOP                        
                       
 /* Configure the Altera interval timer to create interrupts at 50-msec intervals */
@@ -149,7 +163,7 @@ KEYS_CHECK:
 UNEXPECTED:                             
         BNE     UNEXPECTED              // if not recognized, stop here
 
-        BL      KEY_ISR                 
+        BL      GlowLed                 
 EXIT_IRQ:                               
 /* Write to the End of Interrupt Register (ICCEOIR) */
         STR     R5, [R4, #0x10]      
@@ -215,10 +229,7 @@ CONFIG_GIC:
         STR     R1, [R0, #0x00]       
         BX      LR                                             
 
-KEY_ISR:
-        LDR     R0, =0xff200050   // base address of pushbutton KEY parallel port
-        LDR     R1, [R0, #0xC]  // read edge capture register
-        STR     R1, [R0, #0xC]  // clear the interrupt
+GlowLed:
 		MOV R1,#1
 		LDR R2,=TIMER_ADDRESS
 		STR R1,[R2,#16]
@@ -261,7 +272,7 @@ END_TIMER_ISR:
 	
 	
 	
-	
+// This timer provides 2.4 seconds delay when it is called.	
 InitTimer:
 	//Init Timer
 	LDR R7, =0xFFFEC600 // PRIVATE TIMER
@@ -523,13 +534,8 @@ Reset_Seven_Segment_Display:
 	LDR R2, Seven_Segment_Base_Addres
 	MOV R1,#0b00111111
 	MOV R0,#0b00111111
-	//ADD R0,R0,R1
 	LSL R1, #8
 	ADD R0,R0,R1
-	//LSL R1, #16
-	//ADD R0,R0,R1
-	///LSL R1, #31
-	//ADD R0,R0,R1
 	STR R0,[R2]
 
 	BX LR
@@ -541,5 +547,3 @@ PATTERN:
 KEY_DIR:                                  
 .word       0  
 .end
-ee306_timerInt_cpulator.txt
-Displaying ee306_timerInt_cpulator.txt.
