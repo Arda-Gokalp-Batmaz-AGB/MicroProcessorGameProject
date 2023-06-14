@@ -15,10 +15,10 @@
 
 .equ LED_BASE, 0xFF200000 
 .equ LED_POINTER_ADDRESS, 0xFFFFea00
-.equ ANSWER_POINTER_ADDRESS, 0xFFFFea04 
 .equ LED_SAVE_BASE_ADDRESS, 0xFFFFea10 
 .equ LED_MAX_SAVE_BASE_ADDRESS, 0xFFFFea60 
 .equ TOTAL_SCORE_SAVE_ADDRESS, 0xFFFFea04 
+.equ LED_COUNT_ADDRESS, 0xFFFFea08 
 .equ RESET_ADDRESS, 0xaaaaaaaa
 .equ SW_BASE, 0xFF200040
 .equ LED_MASK, 0x3FF
@@ -37,7 +37,13 @@ _start:
         MOV     R1, #0b11010010  //| IRQ_MODE 
         MSR     CPSR_c, R1                  // change to IRQ mode
         LDR     SP, =0xFFFFFFFF - 3      // set IRQ stack to top of A9 onchip
-        MOV R12,#4 // LED LIGHT COUNTER
+		
+
+        MOV R12,#3 // LED LIGHT COUNTER
+		LDR R6,=LED_COUNT_ADDRESS
+		STR R12,[R6]
+		
+		MOV R11,#0 // WIN COUNT
 		MOV R6,#0
 		
 		//PUSH {R0-R10,LR}
@@ -53,7 +59,7 @@ _start:
 		LDR R0,=TOTAL_SCORE_SAVE_ADDRESS
 		STR R6,[R0]
 		BL ResetSavedLedsSTART
-		
+		BLPL InitTimer
 
 		//POP {R0-R10,LR}
 
@@ -78,15 +84,17 @@ LOOP:
 		CMP R12,#0
 		SUBPLS R12,R12,#1
 		BLPL KEY_ISR
-		//BPL InitTimer
 		Blpl SaveLeds
 		BLPL InitTimer
 		
 		BL TurnOffLastLed
-		//BLLT TurnOffLastLed
 		BLPL InitTimer
 		BLLT CheckUserSwitchButtonAction
-		CMP R6,#4
+		
+		LDR R0,=LED_COUNT_ADDRESS
+		LDR R0,[R0]
+		
+		CMP R6,R0
 		BLEQ ResetGame
         B LOOP                        
                       
@@ -354,7 +362,9 @@ UpdateScoreAndReturn:
 	//BX LR
 ResetGame:
 	MOV R6,#0
-	MOV R12,#4
+	LDR R0,=LED_COUNT_ADDRESS
+	LDR R0,[R0]
+	MOV R12,R0
 	B ResetSavedLedsSTART
 	//BX LR
 	
