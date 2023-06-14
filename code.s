@@ -112,7 +112,7 @@ LOOP:   // If R12 is positive, the system checks if,
 		BLEQ ResetGame
 		
 		
-        B LOOP                        
+        B LOOP  // Return the loop                      
                       
 /* Configure the Altera interval timer to create interrupts at 50-msec intervals */
 CONFIG_INTERVAL_TIMER:   
@@ -228,24 +228,30 @@ CONFIG_GIC:
         LDR     R0, =0xFFFED000    
         STR     R1, [R0, #0x00]       
         BX      LR                                             
-
+// It glows a random led when the function is triggered; 
+// the randomness depends on the current value of the interval timer. 
+// It takes the last three bits of the interval timer's value by using the timer mask and, 
+// according to these three bits, calculates which led it will glow.
 GlowLed:
+		// Chooses a random value from 0 to 8
 		MOV R1,#1
 		LDR R2,=TIMER_ADDRESS
 		STR R1,[R2,#16]
 		LDR R2 ,[R2,#16]
 		LDR R3,=BIT_SELECT_MASK
-		//AND R2,R2,R3
 		AND R2,R2,R3
 		LSR R2,R2,#9
-		//LSR R2,R2,#10
 
 		MOV R10,R2
 		MOV R9,#1
 		B CalculateLedPlace
-		//B InitTimer
-		//B END_KEY_ISR
 
+		
+// According to the random value that is put in R10, 
+// it starts to iterate, and each iteration decreases this value by one 
+// and shifts R9 to the left in order to obtain 
+// the relevant value that can glow a random led. 
+// When R10 is zero, it finds the LED that needs to glow.
 CalculateLedPlace:
 	CMP R10,#0
 	BEQ InitTimer
