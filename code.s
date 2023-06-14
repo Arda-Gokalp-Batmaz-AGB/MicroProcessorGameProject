@@ -1,6 +1,4 @@
-/*********************************************************************************
- * Initialize the exception vector table
- ********************************************************************************/
+
 .section    .vectors, "ax"              
 
         B       _start                      // reset vector
@@ -13,16 +11,18 @@
         B       SERVICE_FIQ                 // FIQ interrupt vector
 
 
+// After every lamp is glow it is stored in the memory addresses according to the
+// current value in the led_pointer_address, it starts to store glowed 
+// from led_Save_base_address  until led_max_save_base_address
 .equ LED_BASE, 0xFF200000 
-.equ LED_POINTER_ADDRESS, 0xFFFFea00
-.equ LED_SAVE_BASE_ADDRESS, 0xFFFFea10 
-.equ LED_MAX_SAVE_BASE_ADDRESS, 0xFFFFea60 
-.equ TOTAL_SCORE_SAVE_ADDRESS, 0xFFFFea04 
-.equ LED_COUNT_ADDRESS, 0xFFFFea08 
-.equ WIN_COUNT_ADDRESS, 0xFFFFea0c 
-.equ RESET_ADDRESS, 0xaaaaaaaa
-.equ SW_BASE, 0xFF200040
-.equ LED_MASK, 0x3FF
+.equ LED_POINTER_ADDRESS, 0xFFFFea00 // Points the current read address of the led save address
+.equ LED_SAVE_BASE_ADDRESS, 0xFFFFea10 // Address that leds started to be saved
+.equ LED_MAX_SAVE_BASE_ADDRESS, 0xFFFFea60 // Max possible led save address
+.equ TOTAL_SCORE_SAVE_ADDRESS, 0xFFFFea04 // Holds the total score value in that address
+.equ LED_COUNT_ADDRESS, 0xFFFFea08 // Holds the led count that will be grown in every new iteration of the game
+.equ WIN_COUNT_ADDRESS, 0xFFFFea0c // Holds the total win value in that address
+.equ RESET_ADDRESS, 0xaaaaaaaa // Allows the resetting of pre-stored values in the memory by writing them to the relevant addresses.
+.equ SW_BASE, 0xFF200040 // Base addresses of the switches
 .org    0x1000    // Start at memory location 1000
 
 .equ BIT_SELECT_MASK, 0xE00
@@ -251,7 +251,6 @@ TIMER_ISR:
 
         LDR R0,=LED_BASE   // LED base address
 		LDR R1,=SW_BASE
-		LDR R2,=LED_MASK
 		LDR R11, [R1]
 
 END_TIMER_ISR:                  
