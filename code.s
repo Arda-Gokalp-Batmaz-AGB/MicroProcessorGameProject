@@ -14,6 +14,7 @@
 // After every lamp is glow it is stored in the memory addresses according to the
 // current value in the led_pointer_address, it starts to store glowed 
 // from led_Save_base_address  until led_max_save_base_address
+.equ UART_BASE, 0xFF201000
 .equ LED_BASE, 0xFF200000 
 .equ LED_POINTER_ADDRESS, 0xFFFFea00 // Points the current read address of the led save address
 .equ LED_SAVE_BASE_ADDRESS, 0xFFFFea10 // Address that leds started to be saved
@@ -68,6 +69,12 @@ _start:
 		STR R6,[R0]
 		
 		
+		
+		PUSH {R0-R10}
+		LDR  R6, =WELCOME_STRING
+		BL LoadText
+		POP {R0-R10}
+		
 		BL ResetSavedLedsSTART // Resets pre-stored led values in the addresses
 		BLPL InitTimer // Delay for 2.4 seconds
 
@@ -83,10 +90,16 @@ _start:
         BL      CONFIG_INTERVAL_TIMER       // configure the Altera interval timer
         BL      CONFIG_KEYS                 // configure the pushbutton KEYs
 
+		LDR R0, =UART_BASE // UART base address
+		MOV R1, #0xF // set interrupt mask bits
+		STR R1, [R0, #0x4] // interrupt mask register (base + 8)
+	
 /* enable IRQ interrupts in the processor */
         MOV     R1, #0b01010011   //| SVC_MODE  // IRQ unmasked, MODE = SVC
-        MSR     CPSR_c, R1                  
-    	
+        MSR     CPSR_c, R1  
+		
+
+// Main loop of the game, which controls the overall life cycle of the system.		   	
 LOOP:   // If R12 is positive, the system checks if, 
 		// in the current game iteration, 
 		// more leads need to be glowed before allowing the user to push switches.
@@ -158,6 +171,11 @@ INTERVAL_TIMER_CHECK:
         BL      TIMER_ISR               
         B       EXIT_IRQ                
 
+//UAT_CHECK:
+//	CMP R5, #80
+//	BEQ UAT_INTERRUPT
+	
+	
 KEYS_CHECK:                             
         CMP     R5, #73           
 UNEXPECTED:                             
@@ -202,7 +220,6 @@ SERVICE_FIQ:
  */
 .global     CONFIG_GIC              
 CONFIG_GIC:                             
-           
 /* configure the FPGA IRQ0 (interval timer) and IRQ1 (KEYs) interrupts */
         LDR     R0, =0xFFFED848         // ICDIPTRn: processor targets register
         LDR     R1, =0x00000101         // set targets to cpu0
@@ -212,6 +229,7 @@ CONFIG_GIC:
         LDR     R1, =0x00000300         // set interrupt enable
         STR     R1, [R0]                
 
+	
 /* configure the GIC CPU interface */
         LDR     R0, =0xFFFEC100   // base address of CPU interface
 /* Set Interrupt Priority Mask Register (ICCPMR) */
@@ -227,7 +245,9 @@ CONFIG_GIC:
  * allows the distributor to forward interrupts to the CPU interface(s) */
         LDR     R0, =0xFFFED000    
         STR     R1, [R0, #0x00]       
-        BX      LR                                             
+		BX LR
+
+
 // It glows a random led when the function is triggered; 
 // the randomness depends on the current value of the interval timer. 
 // It takes the last three bits of the interval timer's value by using the timer mask and, 
@@ -297,7 +317,10 @@ WAIT:
 	LDR R1,=LED_POINTER_ADDRESS
 	LDR R1,[R1]
 	B END_KEY_ISR
+	
 
+// Saves the LED's value to the relevant addresses, 
+// which are pointed to by the LED pointer address value.	
 SaveLeds:
 	LDR R2,[R1]
 	CMP R2,#0
@@ -307,17 +330,20 @@ SaveLeds:
 	BEQ END_SAVE
 	ADD R1,R1,#4
 	B SaveLeds
+// Sets off to the last glowed LED.
 TurnOffLastLed:
 	LDR R1, =LED_BASE
 	MOV R9,#0
 	STR R9,[R1]
   	BX  LR 
 	
-	
+// Start function for resetting the pre-stored LED values in the addresses.	
 ResetSavedLedsSTART:
 	LDR R0,=LED_SAVE_BASE_ADDRESS
-	//MOV R12,#0
 	B ResetSavedLedsLOOP
+	
+// Iterates over all the saved LED data and resets them by overwriting 
+// them by using the value in the reset address which is "0xaaaaaaaa"
 ResetSavedLedsLOOP:
 	LDR R3,=RESET_ADDRESS
 	LDR R2,[R0]
@@ -327,12 +353,16 @@ ResetSavedLedsLOOP:
 	STR R3,[R0]
 	ADD R0,R0,#4
 	B ResetSavedLedsLOOP
+	
+// Finishes the operation and also resets LED pointer to the base address.
 ResetSavedLedsFINISH:
 	LDR R0,=LED_SAVE_BASE_ADDRESS
 	LDR R1,=LED_POINTER_ADDRESS
 	STR R0,[R1]
 	BX LR
-
+// Checks if the user pushed a switch button or not; 
+// if so, check if he pushed the switch 
+// buttons in an order that matches the order of the LEDs' glow.
 CheckUserSwitchButtonAction:
 	LDR R0,=SW_BASE
 	LDR R0,[R0]
@@ -341,13 +371,23 @@ CheckUserSwitchButtonAction:
 	LDR R0,=LED_SAVE_BASE_ADDRESS
 	MOV R3,#0
 	B GetCurrentLedAddress
+
+// Finds the address of the currently led 
+// redirects to CheckIFSwitchAnswerCorrect method 
+// to check if clicked switch matches with the current led.
 GetCurrentLedAddress:
 	CMP R6,R3
 	BEQ CheckIFSwitchAnswerCorrect
 	ADD R3,R3,#1
 	ADD R0,R0,#4
 	B GetCurrentLedAddress
-	//BEQ CheckIFSwitchAnswerCorrect
+
+// Checks if the switch and LED are matching 
+// by comparing their values because, for both of the devices, 
+// the working principle of the values is the same. For instance, 
+// when you press the first button on the switch, 
+// the binary value is 1. Similarly, if you want the first LED to glow, 
+// you must have written the binary value 1. So they can be compared easily.
 CheckIFSwitchAnswerCorrect:
 	ADD R6,R6,#1
 	LDR R0,[R0]
@@ -356,7 +396,10 @@ CheckIFSwitchAnswerCorrect:
 	CMP R0,R1
 	BEQ CorrectContinueGame
 	B LOSE
-	
+
+// Triggers when switch and key is matching, 
+// waits until user resets the relevant switch button, 
+// after that runs UpdateScoreAndReturn 
 CorrectContinueGame:
 	LDR R0,=SW_BASE
 	LDR R0,[R0]
@@ -364,6 +407,8 @@ CorrectContinueGame:
 	BEQ UpdateScoreAndReturn
 	B CorrectContinueGame
 
+// Increases the current score, displays it on the seven segment display 
+// and return to the loop
 UpdateScoreAndReturn:
 	LDR R1,=TOTAL_SCORE_SAVE_ADDRESS
 	LDR R0,[R1]
@@ -374,7 +419,11 @@ UpdateScoreAndReturn:
 	PUSH {R0-R10,LR}
 	MOV R9,R0
 	B DisplayScore
-	//BX LR
+
+
+// Resets the current iteration of the game, it triggers 
+// when you found sequence of LEDS correctly, 
+// it prepares for a new game iteration.
 ResetGame:
 	PUSH {LR}
 	BLPL InitTimer
@@ -391,17 +440,21 @@ ResetGame:
 	BLEQ IncreaseLedCount
 	POP {LR}
 	MOV R6,#0
-	//LDR R0,=LED_COUNT_ADDRESS
+
 	LDR R0,[R0]
 	MOV R12,R0
 	B ResetSavedLedsSTART
-	//BX LR
 
+
+// Every time you win two game iterations, 
+// the game increases the difficulty by adding 1 more LED to the sequence.
 IncreaseLedCount:
 	LDR R11,[R0]
 	ADD R11,R11,#1
 	STR R11,[R0]
 	BX LR
+
+// Ends the saving process by updating the LED pointer address to the next address
 END_SAVE:
 	STR R9,[R1]//PUT LED ADDRESES
 	LDR R2,=LED_POINTER_ADDRESS
@@ -414,15 +467,62 @@ END_SAVE:
 END_KEY_ISR:
         BX  LR  
 
+// Triggers when you lose the game, Opens all of the LEDS
 LOSE:
 	LDR R0,=LED_BASE
 	LDR R1,=0b1111111111
 	STR R1,[R0]
 	B END
+// ENDING FUNCTION
 END:
 	B END
 
 
+// Loads the text and by using 
+// it's helper functions prints the relevant text to the JTAG UART.
+LoadText:
+	//Init Timer
+	LDR R11, =0xFFFEC600 // PRIVATE TIMER
+	LDR R10,=12000000
+	STR R10,[R11]
+	MOV R10, #0b011 
+	STR R10, [R11, #0x8] 
+
+	LDR  r1, =UART_BASE
+	MOV R8,R7
+	MOV R7,R6
+	B WriteText
+// Writes the text inside the address in the R6 register
+// until reading the memory address which is empty.
+WriteText:
+	LDRB r0, [R7]    // load a single byte from the string
+	CMP  r0, #0
+	BEQ  END_Write_Text  // stop when the null character is found
+	CMP  r0, #0xaa
+	BEQ  END_Write_Text
+	B WAITUAT
+	
+Write_Text_Helper:
+	STR  r0, [r1]    // copy the character to the UART DATA field
+	ADD  R7, R7, #1  // move to next character in memory
+	B WriteText
+	
+// Ends write text 
+END_Write_Text:
+	MOV R7,R8
+	MOV R8,#0
+	MOV R10, #0b000
+	STR R10, [R11, #0x8] 
+	BX LR
+	
+// Waits for a while after every character is written
+WAITUAT: 
+	LDR R10, [R11, #0xC] // read timer status
+	CMP R10, #0
+	BEQ WAITUAT
+	STR R10, [R11, #0xC] 
+	B Write_Text_Helper	
+	
 DisplayScore:
 	MOV R0, R9
 	LDR R2, Seven_Segment_Base_Addres
@@ -533,7 +633,7 @@ Write_All_Digits:
 	POP {R0-R10,LR}
 	BX LR
 	
-
+// Resets the value sto the 0 in the display
 Reset_Seven_Segment_Display:
 	LDR R2, Seven_Segment_Base_Addres
 	MOV R1,#0b00111111
@@ -549,5 +649,12 @@ PATTERN:
 .word       0x0F0F0F0F                  // pattern to show on the LED lights
 .global     KEY_DIR                   
 KEY_DIR:                                  
-.word       0  
+.word       0 
+
+.data  // Data Section
+WELCOME_STRING: 
+.asciz    "\n Hello, Welcome to the Arda Says Game ! "
+
 .end
+
+
