@@ -242,6 +242,8 @@ GlowLed:
 		AND R2,R2,R3
 		LSR R2,R2,#9
 
+		// Put a random value in R10 and initialize R9 with 1 
+		//to prepare to find a binary value that will glow a led in the system.
 		MOV R10,R2
 		MOV R9,#1
 		B CalculateLedPlace
@@ -259,16 +261,12 @@ CalculateLedPlace:
 	LSL R9,R9,#1
 	B CalculateLedPlace
 
-
+// Reset Interval Timer
 TIMER_ISR:                      
         PUSH    {R0-R11}         
         LDR     R1, =0xFF202000 // interval timer base address
         MOVS    R0, #0          
         STR     R0, [R1]        // clear the interrupt
-
-        LDR R0,=LED_BASE   // LED base address
-		LDR R1,=SW_BASE
-		LDR R11, [R1]
 
 END_TIMER_ISR:                  
         POP     {R0-R11}         
@@ -280,27 +278,28 @@ END_TIMER_ISR:
 	
 // This timer provides 2.4 seconds delay when it is called.	
 InitTimer:
-	//Init Timer
+	// Initializes the Timer with 2.4 seconds
 	LDR R7, =0xFFFEC600 // PRIVATE TIMER
-	LDR R8,=240000000
+	LDR R8,=240000000 // 240000000 / 100 MHz = 2.4 sec
 	STR R8,[R7]
 	MOV R8, #0b011 
 	STR R8, [R7, #0x8] 	
 	B WAIT
+	
+// Loops in the WAIT function until the private timer finishes 2.4 seconds
 WAIT: 
 	LDR R8, [R7, #0xC] // read timer status
 	CMP R8, #0
-	BEQ WAIT
+	BEQ WAIT // Continue if it is not finished
 	STR R8, [R7, #0xC]
 	
 	LDR R0,=LED_SAVE_BASE_ADDRESS
 	LDR R1,=LED_POINTER_ADDRESS
 	LDR R1,[R1]
 	B END_KEY_ISR
-	//B SaveLeds
+
 SaveLeds:
 	LDR R2,[R1]
-	//LDR R2,[R2]
 	CMP R2,#0
 	BEQ END_SAVE
 	LDR R3,=RESET_ADDRESS
@@ -312,7 +311,6 @@ TurnOffLastLed:
 	LDR R1, =LED_BASE
 	MOV R9,#0
 	STR R9,[R1]
-	//MOV R12,#0
   	BX  LR 
 	
 	
@@ -332,7 +330,6 @@ ResetSavedLedsLOOP:
 ResetSavedLedsFINISH:
 	LDR R0,=LED_SAVE_BASE_ADDRESS
 	LDR R1,=LED_POINTER_ADDRESS
-	//LDR R0,[R1]
 	STR R0,[R1]
 	BX LR
 
@@ -412,7 +409,8 @@ END_SAVE:
 	LDR R1, =LED_BASE
 	STR R9,[R1]
 	B END_KEY_ISR
-	
+
+// End method that redirects to main LOOP
 END_KEY_ISR:
         BX  LR  
 
