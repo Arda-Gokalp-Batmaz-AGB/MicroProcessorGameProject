@@ -12,15 +12,15 @@
 
 
 // After every lamp is glow it is stored in the memory addresses according to the
-// current value in the led_pointer_address, it starts to store glowed 
-// from led_Save_base_address  until led_max_save_base_address
+// current value in the LED_POINTER_ADDRESS, it starts to store glowed 
+// from LED_SAVE_BASE_ADDRESS  until LED_MAX_SAVE_BASE_ADDRESS
 .equ UART_BASE, 0xFF201000
 .equ LED_BASE, 0xFF200000 
-.equ LED_POINTER_ADDRESS, 0xFFFFea00 // Points the current read address of the led save address
-.equ LED_SAVE_BASE_ADDRESS, 0xFFFFea10 // Address that leds started to be saved
-.equ LED_MAX_SAVE_BASE_ADDRESS, 0xFFFFea60 // Max possible led save address
+.equ LED_POINTER_ADDRESS, 0xFFFFea00 // Points the current read address of the LED save address
+.equ LED_SAVE_BASE_ADDRESS, 0xFFFFea10 // Address that LEDs started to be saved
+.equ LED_MAX_SAVE_BASE_ADDRESS, 0xFFFFea60 // Max possible LED save address
 .equ TOTAL_SCORE_SAVE_ADDRESS, 0xFFFFea04 // Holds the total score value in that address
-.equ LED_COUNT_ADDRESS, 0xFFFFea08 // Holds the led count that will be grown in every new iteration of the game
+.equ LED_COUNT_ADDRESS, 0xFFFFea08 // Holds the LED count that will be grown in every new iteration of the game
 .equ WIN_COUNT_ADDRESS, 0xFFFFea0c // Holds the total win value in that address
 .equ RESET_ADDRESS, 0xaaaaaaaa // Allows the resetting of pre-stored values in the memory by writing them to the relevant addresses.
 .equ SW_BASE, 0xFF200040 // Base addresses of the switches
@@ -40,13 +40,13 @@ _start:
         LDR     SP, =0xFFFFFFFF - 3      // set IRQ stack to top of A9 onchip
 		
 
-        MOV R12,#3 // glow led count at start it decreases after every sucessfull attemp to 
-		// Loads glow led count to relevant address
+        MOV R12,#3 // glow LED count at start it decreases after every sucessfull attemp to 
+		// Loads glow LED count to relevant address
 		LDR R6,=LED_COUNT_ADDRESS
 		STR R12,[R6]
 		
-		// Holds the current correctly matched led switch pair count; 
-		// It is used in order to check if the user matched all leds in a game iteration. 
+		// Holds the current correctly matched LED switch pair count; 
+		// It is used in order to check if the user matched all LEDs in a game iteration. 
 		// It resets after every iteration.
 		MOV R6,#0
 		
@@ -56,11 +56,11 @@ _start:
 
 		BL Reset_Seven_Segment_Display // Resets the values in the display
 		
-		// Closes all of the leds
+		// Closes all of the LEDs
 		LDR R0,=LED_BASE
 		STR R6,[R0]
 		
-		// Initializes the led pointer address value to the base address 
+		// Initializes the LED pointer address value to the base address 
 		// value to start pointing and putting values from the base address.
 		LDR R0,=LED_POINTER_ADDRESS
 		LDR R2,=LED_SAVE_BASE_ADDRESS
@@ -75,7 +75,7 @@ _start:
 		BL LoadText
 		POP {R0-R10}
 		
-		BL ResetSavedLedsSTART // Resets pre-stored led values in the addresses
+		BL ResetSavedLedsSTART // Resets pre-stored LED values in the addresses
 		BLPL InitTimer // Delay for 2.4 seconds
 
 
@@ -109,7 +109,7 @@ LOOP:   // If R12 is positive, the system checks if,
 		BlPl SaveLeds
 		BLPL InitTimer
 		
-		//Extinguishes the last glowed led, and 
+		//Extinguishes the last glowed LED, and 
 		// before glowing another waits for 2.4 seconds.
 		BL TurnOffLastLed
 		BLPL InitTimer
@@ -117,7 +117,7 @@ LOOP:   // If R12 is positive, the system checks if,
 		// Checks user's interactions with the switch buttons
 		BLLT CheckUserSwitchButtonAction
 		
-		// Checks if the user found all the led-switch pairs correctly in a game iteration; 
+		// Checks if the user found all the LED-switch pairs correctly in a game iteration; 
 		// if so, start a new game iteration.
 		LDR R0,=LED_COUNT_ADDRESS
 		LDR R0,[R0]
@@ -248,10 +248,10 @@ CONFIG_GIC:
 		BX LR
 
 
-// It glows a random led when the function is triggered; 
+// It glows a random LED when the function is triggered; 
 // the randomness depends on the current value of the interval timer. 
 // It takes the last three bits of the interval timer's value by using the timer mask and, 
-// according to these three bits, calculates which led it will glow.
+// according to these three bits, calculates which LED it will glow.
 GlowLed:
 		// Chooses a random value from 0 to 8
 		MOV R1,#1
@@ -263,7 +263,7 @@ GlowLed:
 		LSR R2,R2,#9
 
 		// Put a random value in R10 and initialize R9 with 1 
-		//to prepare to find a binary value that will glow a led in the system.
+		//to prepare to find a binary value that will glow a LED in the system.
 		MOV R10,R2
 		MOV R9,#1
 		B CalculateLedPlace
@@ -272,7 +272,7 @@ GlowLed:
 // According to the random value that is put in R10, 
 // it starts to iterate, and each iteration decreases this value by one 
 // and shifts R9 to the left in order to obtain 
-// the relevant value that can glow a random led. 
+// the relevant value that can glow a random LED. 
 // When R10 is zero, it finds the LED that needs to glow.
 CalculateLedPlace:
 	CMP R10,#0
@@ -372,9 +372,9 @@ CheckUserSwitchButtonAction:
 	MOV R3,#0
 	B GetCurrentLedAddress
 
-// Finds the address of the currently led 
+// Finds the address of the currently LED 
 // redirects to CheckIFSwitchAnswerCorrect method 
-// to check if clicked switch matches with the current led.
+// to check if clicked switch matches with the current LED.
 GetCurrentLedAddress:
 	CMP R6,R3
 	BEQ CheckIFSwitchAnswerCorrect
